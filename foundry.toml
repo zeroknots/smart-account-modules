@@ -1,6 +1,6 @@
 # Full reference https://github.com/foundry-rs/foundry/tree/master/crates/config
 
-[profile.default]
+[profile.normal]
   auto_detect_solc = false
   block_timestamp = 1_680_220_800 # March 31, 2023 at 00:00 GMT
   bytecode_hash = "none"
@@ -9,14 +9,25 @@
   gas_reports = ["*"]
   optimizer = true
   optimizer_runs = 1_000_000
+  fs_permissions = [{ access = "read", path = "./out"}]
   out = "out"
   script = "scripts"
   solc = "0.8.25"
   src = "contracts"
   test = "test"
   cache_path  = "cache_forge"
-  libs = ["node_modules", "lib"]
   gas_reports_ignore = ["LockTest"]
+  libs = ["node_modules"]
+
+[profile.ir]
+  bytecode_hash = "none"
+  cbor_metadata = false
+  optimize = true
+  runs = 1000
+  via-ir = true
+  out = "out"
+  src = "signer"
+  test = "test2"
 
 [profile.ci]
   fuzz = { runs = 10_000 }
