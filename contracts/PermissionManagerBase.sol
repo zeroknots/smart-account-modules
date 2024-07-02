@@ -15,7 +15,7 @@ abstract contract PermissionManagerBase {
     mapping(SignerId => Bytes32Vec) internal $enabledActionIds;
     mapping(SignerId => mapping(address smartAccount => ISigner)) internal $isigners;
 
-    function setUserOpPolicy(SignerId signerId) public { }
-    function setActionPolicy(SignerId signerId, ActionId actionId) public { }
-    function setERC1271Policy(SignerId signerId) public { }
+    function setUserOpPolicy(SignerId signerId, address[] calldata policies) public { }
+    function setActionPolicy(SignerId signerId, ActionId actionId, address[] calldata policies) public { }
+    function setERC1271Policy(SignerId signerId, address[] calldata policies) public { }
 }

@@ -176,7 +176,11 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
      *
      * @param data The data to initialize the module with
      */
-    function onInstall(bytes calldata data) external override { }
+    function onInstall(bytes calldata data) external override {
+        if (data.length == 0) return;
+
+        (address[] memory signers, address[] memory policies) = abi.decode(data, (address[], address[]));
+    }
 
     /**
      * De-initialize the module with the given data
