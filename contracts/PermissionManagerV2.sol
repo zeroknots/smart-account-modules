@@ -88,32 +88,17 @@ contract PermissionManager is PermissionManagerBase {
     }
 
     function _enablePolicies(bytes calldata packedSig, address account) internal returns (bytes calldata) {
-        (
-            bytes calldata permissionEnableData,
-            ,
-            ,
-            // bytes calldata permissionEnableDataSignature,
-            // bytes calldata permissionData,
-            bytes calldata signature
-        ) = packedSig.decodePackedSigEnable();
+        EnableData memory enableData = packedSig.decodePackedSigEnable();
+        bytes32 hash = enableData.digest();
+        // require signature on account
+        if (IERC1271(account).isValidSignature(hash, enableData.permissionEnableSig) != EIP1271_MAGIC_VALUE) {
+            revert();
+        }
 
-        (SignerId signerId,) = signature.decodeUse();
-
-        // bytes32 hash = permissionEnableData.digest();
-        // // require signature on account
-        // if (IERC1271(account).isValidSignature(hash, permissionEnableDataSignature) != EIP1271_MAGIC_VALUE) revert();
-
-        (
-            address[] memory userOpPolicies,
-            address[] memory erc1271Policy,
-            ActionId actionId,
-            address[] memory actionPolicies
-        ) = permissionEnableData.decodeEnable();
-
-        $userOpPolicies.enable(userOpPolicies, signerId, account);
-        $erc1271Policies.enable(erc1271Policy, signerId, account);
-        $actionPolicies.enable(actionPolicies, actionId, signerId, account);
-        return signature;
+        $userOpPolicies.enable(enableData.userOpPolicies, enableData.signerId, account);
+        $erc1271Policies.enable(enableData.erc1271Policies, enableData.signerId, account);
+        $actionPolicies.enable(enableData.actionPolicies, enableData.actionId, enableData.signerId, account);
+        return enableData.permissionUseSig;
     }
 
     function _enforcePolicies(

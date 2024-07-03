@@ -9,6 +9,11 @@ type ActionPolicyId is bytes32;
 
 type SignedActionId is bytes32;
 
+function toSignerId(address account, bytes32 simpleSignerValidator) view returns (SignerId signerId) {
+    signerId =
+        SignerId.wrap(keccak256(abi.encodePacked("Signer Id for ", account, simpleSignerValidator, block.timestamp)));
+}
+
 function toActionPolicyId(SignerId signerId, ActionId actionId) pure returns (ActionPolicyId policyId) {
     policyId = ActionPolicyId.wrap(keccak256(abi.encodePacked(SignerId.unwrap(signerId), ActionId.unwrap(actionId))));
 }
@@ -17,6 +22,16 @@ function toSignedActionId(SignerId signerId, ActionId actionId) pure returns (Si
     policyId = SignedActionId.wrap(
         keccak256(abi.encodePacked("ERC1271: ", SignerId.unwrap(signerId), ActionId.unwrap(actionId)))
     );
+}
+
+struct EnableData {
+    SignerId signerId;
+    bytes permissionEnableSig;
+    bytes permissionUseSig;
+    ActionId actionId;
+    address[] userOpPolicies;
+    address[] erc1271Policies;
+    address[] actionPolicies;
 }
 
 struct PolicyConfig {

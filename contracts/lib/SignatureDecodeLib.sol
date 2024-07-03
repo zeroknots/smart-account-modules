@@ -20,28 +20,13 @@ library SignatureDecodeLib {
         signature = packedSig[32:];
     }
 
-    function decodePackedSigEnable(bytes calldata packedSig)
-        internal
-        pure
-        returns (
-            // uint8 permissionIndex,
-            bytes calldata permissionEnableData,
-            bytes calldata permissionEnableDataSignature,
-            bytes calldata permissionData,
-            bytes calldata signature
-        )
-    {
-        // TODO: these are just placeholders
-
-        // permissionIndex = uint8(packedSig[1]);
-        permissionEnableData = packedSig[2:34];
-        permissionEnableDataSignature = packedSig[34:66];
-        permissionData = packedSig[66:98];
-        signature = packedSig[98:];
+    function decodePackedSigEnable(bytes calldata packedSig) internal pure returns (EnableData memory enableData) {
+        enableData = abi.decode(packedSig, (EnableData));
     }
 
-    function digest(bytes calldata data) internal pure returns (bytes32) {
-        return keccak256(data);
+    function digest(EnableData memory data) internal pure returns (bytes32) {
+        // TODO add chainId
+        return keccak256(abi.encode(data.userOpPolicies, data.erc1271Policies, data.actionPolicies));
     }
 
     function decodeEnable(bytes calldata enableData)
@@ -56,6 +41,20 @@ library SignatureDecodeLib {
     {
         (userOpPolicies, erc1271Policy, actionId, actionPolicies) =
             abi.decode(enableData, (address[], address[], ActionId, address[]));
+    }
+
+    function encodeEnable(
+        address[] memory userOpPolicies,
+        address[] memory erc1271Policy,
+        ActionId actionId,
+        address[] memory actionPolicies
+    )
+        internal
+        pure
+        returns (bytes memory enableData)
+    {
+        enableData = abi.encode(userOpPolicies, erc1271Policy, actionId, actionPolicies);
+        enableData = abi.encodePacked(PermissionManagerMode.UNSAFE_ENABLE, enableData);
     }
 
     function decodeInstall(bytes calldata enableData)
