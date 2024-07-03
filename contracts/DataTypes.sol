@@ -1,4 +1,5 @@
 import "./lib/ArrayMap4337Lib.sol";
+import { SentinelList4337Lib } from "sentinellist/SentinelList4337.sol";
 
 type SignerId is bytes32;
 
@@ -18,14 +19,29 @@ function toSignedActionId(SignerId signerId, ActionId actionId) pure returns (Si
     );
 }
 
-type PermissionDescriptor is bytes4;
+struct PolicyConfig {
+    SignerId signerId;
+    address[] policies;
+}
 
-uint256 constant _SIGNER_VALIDATORS_SLOT_SEED = 0x5a8d4c29;
-uint256 constant _RENOUNCED_PERMISSIONS_SLOT_SEED = 0xa8cc43e2;
-uint256 constant _NONCES_SLOT_SEED = 0xfcc720b6;
+struct ActionPolicyConfig {
+    ActionId actionId;
+    PolicyConfig[] policyConfig;
+}
+
+type PermissionDescriptor is bytes4;
 
 enum PermissionManagerMode {
     USE,
     ENABLE,
     UNSAFE_ENABLE
+}
+
+struct Policy {
+    mapping(SignerId => SentinelList4337Lib.SentinelList) policyList;
+}
+
+struct EnumerableActionPolicy {
+    mapping(ActionId => Policy) actionPolicies;
+    Bytes32ArrayMap4337 enabledActionIds;
 }

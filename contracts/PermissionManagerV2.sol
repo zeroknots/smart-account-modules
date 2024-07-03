@@ -3,6 +3,7 @@ pragma solidity ^0.8.25;
 
 import { ERC7579ValidatorBase, ERC7579ExecutorBase } from "modulekit/Modules.sol";
 import { PackedUserOperation } from "modulekit/external/ERC4337.sol";
+import { EIP1271_MAGIC_VALUE, IERC1271 } from "module-bases/interfaces/IERC1271.sol";
 
 import {
     ModeLib,
@@ -35,6 +36,7 @@ import {
 
 import { PolicyLib } from "./lib/PolicyLib.sol";
 import { SignerLib } from "./lib/SignerLib.sol";
+import { ConfigLib } from "./lib/ConfigLib.sol";
 import { SignatureDecodeLib } from "./lib/SignatureDecodeLib.sol";
 import { Execution, ExecutionLib } from "erc7579/lib/ExecutionLib.sol";
 
@@ -54,6 +56,7 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
     using AddressVecLib for *;
     using PolicyLib for *;
     using SignerLib for *;
+    using ConfigLib for *;
     using ExecutionLib for *;
     using SignatureDecodeLib for *;
 
@@ -68,13 +71,45 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
         returns (ValidationData vd)
     {
         address account = userOp.sender;
+        if (account != msg.sender) revert();
         (PermissionManagerMode mode, bytes calldata packedSig) = userOp.decodeMode();
 
         if (mode == PermissionManagerMode.ENABLE) {
             // TODO: implement enable
-        } else if (mode == PermissionManagerMode.UNSAFE_ENABLE) { }
+
+            // this case is here to enable ISigners not Policies
+        } else if (mode == PermissionManagerMode.UNSAFE_ENABLE) {
+            packedSig = _enablePolicies(packedSig, account);
+        }
 
         vd = _enforcePolicies(userOpHash, userOp, packedSig, account);
+    }
+
+    function _enablePolicies(bytes calldata packedSig, address account) internal returns (bytes calldata) {
+        (
+            bytes calldata permissionEnableData,
+            bytes calldata permissionEnableDataSignature,
+            bytes calldata permissionData,
+            bytes calldata signature
+        ) = packedSig.decodePackedSigEnable();
+
+        (SignerId signerId,) = signature.decodeUse();
+
+        bytes32 hash = permissionEnableData.digest();
+        // require signature on account
+        if (IERC1271(account).isValidSignature(hash, permissionEnableDataSignature) != EIP1271_MAGIC_VALUE) revert();
+
+        (
+            address[] memory userOpPolicies,
+            address[] memory erc1271Policy,
+            ActionId actionId,
+            address[] memory actionPolicies
+        ) = permissionEnableData.decodeEnable();
+
+        $userOpPolicies.enable(userOpPolicies, signerId, account);
+        $erc1271Policies.enable(erc1271Policy, signerId, account);
+        $actionPolicies.enable(actionPolicies, actionId, signerId, account);
+        return signature;
     }
 
     function _enforcePolicies(
@@ -120,10 +155,10 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
             if (ExecType.unwrap(execType) != ExecType.unwrap(EXECTYPE_DEFAULT)) revert();
             // DEFAULT EXEC & BATCH CALL
             if (callType == CALLTYPE_BATCH) {
-                vd = $actionPolicies.checkBatch7579Exec({ userOp: userOp, signerId: signerId });
+                vd = $actionPolicies.actionPolicies.checkBatch7579Exec({ userOp: userOp, signerId: signerId });
             } else if (callType == CALLTYPE_SINGLE) {
                 (address target, uint256 value, bytes calldata callData) = userOp.callData.decodeSingle();
-                vd = $actionPolicies.checkSingle7579Exec({
+                vd = $actionPolicies.actionPolicies.checkSingle7579Exec({
                     userOp: userOp,
                     signerId: signerId,
                     target: target,
@@ -142,7 +177,7 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
         // all other executions are supported and are handled by the actionPolicies
         else {
             ActionId actionId = userOp.sender.toActionId(userOp.callData);
-            vd = $actionPolicies[actionId].check({
+            vd = $actionPolicies.actionPolicies[actionId].check({
                 userOp: userOp,
                 signer: signerId,
                 callOnIPolicy: abi.encodeCall(
@@ -179,7 +214,16 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
     function onInstall(bytes calldata data) external override {
         if (data.length == 0) return;
 
-        (address[] memory signers, address[] memory policies) = abi.decode(data, (address[], address[]));
+        // TODO: change to calldata
+        (
+            PolicyConfig[] memory userOpPolicies,
+            PolicyConfig[] memory erc1271Policy,
+            ActionPolicyConfig[] memory actionPolicies
+        ) = data.decodeEnable();
+
+        setUserOpPolicy(userOpPolicies);
+        setERC1271Policy(erc1271Policy);
+        setActionPolicy(actionPolicies);
     }
 
     /**
