@@ -6,6 +6,7 @@ import {
 } from "./ArrayMap4337Lib.sol";
 import { SentinelList4337Lib } from "sentinellist/SentinelList4337.sol";
 import { Bytes32ArrayMap4337, ArrayMap4337Lib } from "./ArrayMap4337Lib.sol";
+import "forge-std/console2.sol";
 
 library ConfigLib {
     using SentinelList4337Lib for SentinelList4337Lib.SentinelList;
@@ -16,13 +17,18 @@ library ConfigLib {
         uint256 lengthConfigs = policyConfig.length;
 
         // TODO: trusted forward check
+        console2.log("enable policy", lengthConfigs, msg.sender, smartAccount);
 
         for (uint256 i; i < lengthConfigs; i++) {
             PolicyConfig memory config = policyConfig[i];
+            console2.log("signerID");
+            console2.logBytes32(SignerId.unwrap(config.signerId));
 
             uint256 lengthPolicies = config.policies.length;
+            console2.log("enable policy", lengthPolicies);
 
             for (uint256 y; y < lengthPolicies; y++) {
+                console2.log("enable policy", config.policies[y]);
                 $policy.policyList[config.signerId].push(smartAccount, config.policies[i]);
             }
         }

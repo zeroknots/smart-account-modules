@@ -8,9 +8,13 @@ import {
 import "./interfaces/ISigner.sol";
 import { SentinelList4337Lib } from "sentinellist/SentinelList4337.sol";
 import { Bytes32ArrayMap4337, ArrayMap4337Lib } from "./lib/ArrayMap4337Lib.sol";
+import { ERC7579ValidatorBase, ERC7579ExecutorBase } from "modulekit/Modules.sol";
 import { ConfigLib } from "./lib/ConfigLib.sol";
+import { SignatureDecodeLib } from "./lib/SignatureDecodeLib.sol";
 
-abstract contract PermissionManagerBase {
+abstract contract PermissionManagerBase is ERC7579ExecutorBase, ERC7579ValidatorBase {
+    using ConfigLib for *;
+    using SignatureDecodeLib for *;
     using SentinelList4337Lib for SentinelList4337Lib.SentinelList;
     using ArrayMap4337Lib for *;
     using ConfigLib for Policy;
@@ -31,5 +35,42 @@ abstract contract PermissionManagerBase {
 
     function setActionPolicy(ActionPolicyConfig[] memory policyConfig) public {
         $actionPolicies.enable({ actionPolicyConfig: policyConfig, smartAccount: msg.sender });
+    }
+
+    function setSigner(SignerId signerId, ISigner signer) public {
+        $isigners[signerId][msg.sender] = signer;
+    }
+
+    /**
+     * Initialize the module with the given data
+     *
+     * @param data The data to initialize the module with
+     */
+    function onInstall(bytes calldata data) external override {
+        if (data.length == 0) return;
+
+        // TODO: change to calldata
+        (
+            PolicyConfig[] memory userOpPolicies,
+            PolicyConfig[] memory erc1271Policy,
+            ActionPolicyConfig[] memory actionPolicies
+        ) = data.decodeInstall();
+
+        setUserOpPolicy(userOpPolicies);
+        setERC1271Policy(erc1271Policy);
+        setActionPolicy(actionPolicies);
+    }
+
+    /**
+     * De-initialize the module with the given data
+     *
+     * @param data The data to de-initialize the module with
+     */
+    function onUninstall(bytes calldata data) external override { }
+
+    function isInitialized(address smartAccount) external view returns (bool) { }
+
+    function isModuleType(uint256 typeID) external pure override returns (bool) {
+        return typeID == TYPE_VALIDATOR || typeID == TYPE_EXECUTOR;
     }
 }

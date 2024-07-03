@@ -7,6 +7,7 @@ import {
 } from "contracts/lib/ArrayMap4337Lib.sol";
 
 import { Execution, ExecutionLib } from "erc7579/lib/ExecutionLib.sol";
+import "forge-std/console2.sol";
 
 import {
     ModeLib,
@@ -75,7 +76,8 @@ library PolicyLib {
         Policy storage $self,
         PackedUserOperation calldata userOp,
         SignerId signer,
-        bytes memory callOnIPolicy
+        bytes memory callOnIPolicy,
+        uint256 minPoliciesToEnforce
     )
         internal
         returns (ERC7579ValidatorBase.ValidationData vd)
@@ -83,12 +85,15 @@ library PolicyLib {
         address account = userOp.sender;
         (address[] memory policies,) = $self.policyList[signer].getEntriesPaginated(account, SENTINEL, 32);
         uint256 length = policies.length;
+        if (minPoliciesToEnforce > length) revert NoPoliciesSet(signer);
 
-        // if no policies are set, the SignerId is not configured by the user
-        if (length == 0) revert NoPoliciesSet(signer);
+        console2.log("policies length:", length);
+        console2.log("signer:");
+        console2.logBytes32(SignerId.unwrap(signer));
 
         // iterate over all policies and intersect the validation data
         for (uint256 i; i < length; i++) {
+            console2.log("policy:", address(policies[i]));
             uint256 validationDataFromPolicy =
                 uint256(bytes32(policies[i].fwdCall({ forAccount: account, callData: callOnIPolicy })));
             vd = vd.intersectValidationData(ERC7579ValidatorBase.ValidationData.wrap(validationDataFromPolicy));
@@ -153,7 +158,8 @@ library PolicyLib {
                     callData, // data
                     userOp // userOp
                 )
-            )
+            ),
+            minPoliciesToEnforce: 0
         });
     }
 

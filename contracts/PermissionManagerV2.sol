@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import { ERC7579ValidatorBase, ERC7579ExecutorBase } from "modulekit/Modules.sol";
 import { PackedUserOperation } from "modulekit/external/ERC4337.sol";
 import { EIP1271_MAGIC_VALUE, IERC1271 } from "module-bases/interfaces/IERC1271.sol";
 
@@ -52,7 +51,7 @@ import { PermissionManagerBase } from "./PermissionManagerBase.sol";
  *     - Check Policies/Signers via Registry before enabling
  *     - In policies contracts, change signerId to id
  */
-contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC7579ExecutorBase {
+contract PermissionManager is PermissionManagerBase {
     using AddressVecLib for *;
     using PolicyLib for *;
     using SignerLib for *;
@@ -74,6 +73,8 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
         if (account != msg.sender) revert();
         (PermissionManagerMode mode, bytes calldata packedSig) = userOp.decodeMode();
 
+        console2.logBytes(packedSig);
+
         if (mode == PermissionManagerMode.ENABLE) {
             // TODO: implement enable
 
@@ -82,22 +83,25 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
             packedSig = _enablePolicies(packedSig, account);
         }
 
+        console2.log("checking policies");
         vd = _enforcePolicies(userOpHash, userOp, packedSig, account);
     }
 
     function _enablePolicies(bytes calldata packedSig, address account) internal returns (bytes calldata) {
         (
             bytes calldata permissionEnableData,
-            bytes calldata permissionEnableDataSignature,
-            bytes calldata permissionData,
+            ,
+            ,
+            // bytes calldata permissionEnableDataSignature,
+            // bytes calldata permissionData,
             bytes calldata signature
         ) = packedSig.decodePackedSigEnable();
 
         (SignerId signerId,) = signature.decodeUse();
 
-        bytes32 hash = permissionEnableData.digest();
-        // require signature on account
-        if (IERC1271(account).isValidSignature(hash, permissionEnableDataSignature) != EIP1271_MAGIC_VALUE) revert();
+        // bytes32 hash = permissionEnableData.digest();
+        // // require signature on account
+        // if (IERC1271(account).isValidSignature(hash, permissionEnableDataSignature) != EIP1271_MAGIC_VALUE) revert();
 
         (
             address[] memory userOpPolicies,
@@ -123,6 +127,10 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
     {
         SignerId signerId;
         (signerId, signature) = signature.decodeUse();
+        console2.log("signerId:");
+        console2.logBytes32(SignerId.unwrap(signerId));
+        console2.log("signature:");
+        console2.logBytes(signature);
 
         // this will revert if ISigner signature is invalid
         $isigners.requireValidISigner({
@@ -136,7 +144,8 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
         vd = $userOpPolicies.check({
             userOp: userOp,
             signer: signerId,
-            callOnIPolicy: abi.encodeCall(IUserOpPolicy.checkUserOp, (signerId, userOp))
+            callOnIPolicy: abi.encodeCall(IUserOpPolicy.checkUserOp, (signerId, userOp)),
+            minPoliciesToEnforce: 1
         });
 
         bytes4 selector = bytes4(userOp.callData[0:4]);
@@ -189,7 +198,8 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
                         userOp.callData, // data
                         userOp // userOp
                     )
-                )
+                ),
+                minPoliciesToEnforce: 0
             });
         }
     }
@@ -205,37 +215,4 @@ contract PermissionManager is PermissionManagerBase, ERC7579ValidatorBase, ERC75
         override
         returns (bytes4 sigValidationResult)
     { }
-
-    /**
-     * Initialize the module with the given data
-     *
-     * @param data The data to initialize the module with
-     */
-    function onInstall(bytes calldata data) external override {
-        if (data.length == 0) return;
-
-        // TODO: change to calldata
-        (
-            PolicyConfig[] memory userOpPolicies,
-            PolicyConfig[] memory erc1271Policy,
-            ActionPolicyConfig[] memory actionPolicies
-        ) = data.decodeEnable();
-
-        setUserOpPolicy(userOpPolicies);
-        setERC1271Policy(erc1271Policy);
-        setActionPolicy(actionPolicies);
-    }
-
-    /**
-     * De-initialize the module with the given data
-     *
-     * @param data The data to de-initialize the module with
-     */
-    function onUninstall(bytes calldata data) external override { }
-
-    function isInitialized(address smartAccount) external view returns (bool) { }
-
-    function isModuleType(uint256 typeID) external pure override returns (bool) {
-        return typeID == TYPE_VALIDATOR || typeID == TYPE_EXECUTOR;
-    }
 }
