@@ -53,6 +53,7 @@ import { PermissionManagerBase } from "./PermissionManagerBase.sol";
  */
 contract PermissionManager is PermissionManagerBase {
     using AddressVecLib for *;
+    using SentinelList4337Lib for SentinelList4337Lib.SentinelList;
     using PolicyLib for *;
     using SignerLib for *;
     using ConfigLib for *;
@@ -73,13 +74,12 @@ contract PermissionManager is PermissionManagerBase {
         if (account != msg.sender) revert();
         (PermissionManagerMode mode, bytes calldata packedSig) = userOp.decodeMode();
 
-        console2.logBytes(packedSig);
-
         if (mode == PermissionManagerMode.ENABLE) {
             // TODO: implement enable
 
             // this case is here to enable ISigners not Policies
         } else if (mode == PermissionManagerMode.UNSAFE_ENABLE) {
+            console2.log("unafe enable");
             packedSig = _enablePolicies(packedSig, account);
         }
 
@@ -87,18 +87,35 @@ contract PermissionManager is PermissionManagerBase {
         vd = _enforcePolicies(userOpHash, userOp, packedSig, account);
     }
 
-    function _enablePolicies(bytes calldata packedSig, address account) internal returns (bytes calldata) {
-        EnableData memory enableData = packedSig.decodePackedSigEnable();
-        bytes32 hash = enableData.digest();
+    function _enablePolicies(
+        bytes calldata packedSig,
+        address account
+    )
+        internal
+        returns (bytes calldata permissionUseSig)
+    {
+        EnableData memory enableData;
+        SignerId signerId;
+        (enableData, signerId, permissionUseSig) = packedSig.decodePackedSigEnable();
+        bytes32 hash = enableData.digest(); // TODO add signerId to hash
         // require signature on account
-        if (IERC1271(account).isValidSignature(hash, enableData.permissionEnableSig) != EIP1271_MAGIC_VALUE) {
-            revert();
-        }
 
-        $userOpPolicies.enable(enableData.userOpPolicies, enableData.signerId, account);
-        $erc1271Policies.enable(enableData.erc1271Policies, enableData.signerId, account);
-        $actionPolicies.enable(enableData.actionPolicies, enableData.actionId, enableData.signerId, account);
-        return enableData.permissionUseSig;
+        // TODO:
+        // if (IERC1271(account).isValidSignature(hash, enableData.permissionEnableSig) != EIP1271_MAGIC_VALUE) {
+        //     revert();
+        // }
+
+        console2.log("enabling policies");
+
+        console2.log("signerId:");
+        console2.logBytes32(SignerId.unwrap(signerId));
+        console2.log("signature:");
+        console2.logBytes(enableData.permissionEnableSig);
+        console2.log("userOpPolicies:", enableData.userOpPolicies[0]);
+
+        $userOpPolicies.enable(enableData.userOpPolicies, signerId, account);
+        $erc1271Policies.enable(enableData.erc1271Policies, signerId, account);
+        $actionPolicies.enable(enableData.actionPolicies, enableData.actionId, signerId, account);
     }
 
     function _enforcePolicies(
@@ -110,6 +127,7 @@ contract PermissionManager is PermissionManagerBase {
         internal
         returns (ValidationData vd)
     {
+        console2.logBytes(signature);
         SignerId signerId;
         (signerId, signature) = signature.decodeUse();
         console2.log("signerId:");

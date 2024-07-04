@@ -73,4 +73,8 @@ abstract contract PermissionManagerBase is ERC7579ExecutorBase, ERC7579Validator
     function isModuleType(uint256 typeID) external pure override returns (bool) {
         return typeID == TYPE_VALIDATOR || typeID == TYPE_EXECUTOR;
     }
+
+    function toCallData(bytes calldata data) public pure returns (bytes calldata sig) {
+        sig = data;
+    }
 }

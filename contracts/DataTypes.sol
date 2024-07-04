@@ -25,9 +25,7 @@ function toSignedActionId(SignerId signerId, ActionId actionId) pure returns (Si
 }
 
 struct EnableData {
-    SignerId signerId;
     bytes permissionEnableSig;
-    bytes permissionUseSig;
     ActionId actionId;
     address[] userOpPolicies;
     address[] erc1271Policies;

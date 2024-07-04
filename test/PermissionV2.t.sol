@@ -88,4 +88,25 @@ contract PermissionManagerBaseTest is RhinestoneModuleKit, Test {
             SignatureDecodeLib.encodeUse({ signerId: defaultSigner1, packedSig: hex"4141414141" });
         userOpData.execUserOps();
     }
+
+    function test_enable_exec() public {
+        UserOpData memory userOpData = instance.getExecOps({
+            target: address(target),
+            value: 0,
+            callData: abi.encodeCall(MockTarget.setValue, (1337)),
+            txValidator: address(permissionManager)
+        });
+
+        EnableData memory enableData = EnableData({
+            actionId: ActionId.wrap(bytes32(hex"01")),
+            permissionEnableSig: hex"424242424242",
+            userOpPolicies: Solarray.addresses(address(yesPolicy)),
+            erc1271Policies: new address[](0),
+            actionPolicies: new address[](0)
+        });
+
+        userOpData.userOp.signature =
+            SignatureDecodeLib.encodePackedSigEnable(defaultSigner1, hex"41414141", enableData);
+        userOpData.execUserOps();
+    }
 }

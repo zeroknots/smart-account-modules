@@ -1,5 +1,6 @@
 import "../DataTypes.sol";
 import { PackedUserOperation } from "modulekit/external/ERC4337.sol";
+import "forge-std/console2.sol";
 
 library SignatureDecodeLib {
     function decodeMode(PackedUserOperation calldata userOp)
@@ -20,8 +21,29 @@ library SignatureDecodeLib {
         signature = packedSig[32:];
     }
 
-    function decodePackedSigEnable(bytes calldata packedSig) internal pure returns (EnableData memory enableData) {
-        enableData = abi.decode(packedSig, (EnableData));
+    function decodePackedSigEnable(bytes calldata packedSig)
+        internal
+        pure
+        returns (EnableData memory enableData, SignerId signerId, bytes calldata signature)
+    {
+        bytes memory tmp;
+        signerId = SignerId.wrap(bytes32(packedSig[0:32]));
+        // todo make this calldata
+        (tmp, enableData) = abi.decode(packedSig[32:], (bytes, EnableData));
+        // making sure singerId is still in the signature. this will be used by _enforcePolicies
+        signature = packedSig[:tmp.length + 32];
+    }
+
+    function encodePackedSigEnable(
+        SignerId signerId,
+        bytes memory useSig,
+        EnableData memory enableData
+    )
+        internal
+        pure
+        returns (bytes memory packedSig)
+    {
+        packedSig = abi.encodePacked(PermissionManagerMode.UNSAFE_ENABLE, signerId, abi.encode(useSig, enableData));
     }
 
     function digest(EnableData memory data) internal pure returns (bytes32) {
