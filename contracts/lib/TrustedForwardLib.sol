@@ -24,7 +24,7 @@ library TrustedForwardLib {
         if (!success) revert();
     }
 
-    function init(address subModule, bytes32 id, address smartAccount, bytes memory subModuleInitData) internal {
+    function initFwd(address subModule, bytes32 id, address smartAccount, bytes memory subModuleInitData) internal {
         try IERC165(subModule).supportsInterface(type(ITrustedForwarder).interfaceId) returns (bool supported) {
             if (supported) {
                 if (!ITrustedForwarder(subModule).isTrustedForwarder(address(this), smartAccount, id)) {

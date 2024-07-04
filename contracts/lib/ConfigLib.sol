@@ -8,10 +8,13 @@ import { SentinelList4337Lib } from "sentinellist/SentinelList4337.sol";
 import { Bytes32ArrayMap4337, ArrayMap4337Lib } from "./ArrayMap4337Lib.sol";
 import "forge-std/console2.sol";
 
+import { TrustedForwardLib } from "./TrustedForwardLib.sol";
+
 library ConfigLib {
     using SentinelList4337Lib for SentinelList4337Lib.SentinelList;
     using ConfigLib for *;
     using ArrayMap4337Lib for *;
+    using TrustedForwardLib for address;
 
     function safePush(SentinelList4337Lib.SentinelList storage self, address account, address newEntry) internal {
         if (!self.alreadyInitialized(account)) {
@@ -31,6 +34,11 @@ library ConfigLib {
         for (uint256 i; i < lengthConfigs; i++) {
             PolicyConfig memory config = policyConfig[i];
             uint256 lengthPolicies = config.policies.length;
+
+            address policy = config.policies[i];
+            policy.initFwd({id: id, smartAccount: smartAccount});
+
+
 
             for (uint256 y; y < lengthPolicies; y++) {
                 $policy.policyList[config.signerId].safePush(smartAccount, config.policies[i]);
