@@ -36,9 +36,7 @@ library ConfigLib {
             uint256 lengthPolicies = config.policies.length;
 
             address policy = config.policies[i];
-            policy.initFwd({id: id, smartAccount: smartAccount});
-
-
+            // policy.initFwd({id: id, smartAccount: smartAccount});
 
             for (uint256 y; y < lengthPolicies; y++) {
                 $policy.policyList[config.signerId].safePush(smartAccount, config.policies[i]);

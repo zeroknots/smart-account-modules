@@ -51,6 +51,12 @@ import { PermissionManagerBase } from "./PermissionManagerBase.sol";
  *     - Check Policies/Signers via Registry before enabling
  *     - In policies contracts, change signerId to id
  */
+
+/**
+ *
+ * @title PermissionManagerA
+ * @author Filipp Makarov (biconomy) & zeroknots.eth (rhinestone)
+ */
 contract PermissionManager is PermissionManagerBase {
     using AddressVecLib for *;
     using SentinelList4337Lib for SentinelList4337Lib.SentinelList;
@@ -75,15 +81,12 @@ contract PermissionManager is PermissionManagerBase {
         (PermissionManagerMode mode, bytes calldata packedSig) = userOp.decodeMode();
 
         if (mode == PermissionManagerMode.ENABLE) {
-            // TODO: implement enable
-
-            // this case is here to enable ISigners not Policies
+            // TODO: implement enable with registry.
+            // registry check will break 4337 so it would make sense to have this in a opt in mode
         } else if (mode == PermissionManagerMode.UNSAFE_ENABLE) {
-            console2.log("unafe enable");
             packedSig = _enablePolicies(packedSig, account);
         }
 
-        console2.log("checking policies");
         vd = _enforcePolicies(userOpHash, userOp, packedSig, account);
     }
 
@@ -105,14 +108,6 @@ contract PermissionManager is PermissionManagerBase {
         //     revert();
         // }
 
-        console2.log("enabling policies");
-
-        console2.log("signerId:");
-        console2.logBytes32(SignerId.unwrap(signerId));
-        console2.log("signature:");
-        console2.logBytes(enableData.permissionEnableSig);
-        console2.log("userOpPolicies:", enableData.userOpPolicies[0]);
-
         $userOpPolicies.enable(enableData.userOpPolicies, signerId, account);
         $erc1271Policies.enable(enableData.erc1271Policies, signerId, account);
         $actionPolicies.enable(enableData.actionPolicies, enableData.actionId, signerId, account);
@@ -127,15 +122,12 @@ contract PermissionManager is PermissionManagerBase {
         internal
         returns (ValidationData vd)
     {
-        console2.logBytes(signature);
         SignerId signerId;
         (signerId, signature) = signature.decodeUse();
-        console2.log("signerId:");
-        console2.logBytes32(SignerId.unwrap(signerId));
-        console2.log("signature:");
-        console2.logBytes(signature);
 
-        // this will revert if ISigner signature is invalid
+        /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+        /*                 Check SessionKey ISigner                   */
+        /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
         $isigners.requireValidISigner({
             userOpHash: userOpHash,
             account: account,
@@ -143,7 +135,9 @@ contract PermissionManager is PermissionManagerBase {
             signature: signature
         });
 
-        // check userOp policies
+        /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+        /*                    Check UserOp Policies                   */
+        /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
         vd = $userOpPolicies.check({
             userOp: userOp,
             signer: signerId,
@@ -152,8 +146,12 @@ contract PermissionManager is PermissionManagerBase {
         });
 
         bytes4 selector = bytes4(userOp.callData[0:4]);
+
+        /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+        /*                      Handle Executions                     */
+        /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
         // if the selector indicates that the userOp is an execution,
-        // all action policies have to be checked
+        // action policies have to be checked
         if (selector == IERC7579Account.execute.selector) {
             ExecutionMode mode = ExecutionMode.wrap(bytes32(userOp.callData[4:36]));
             CallType callType;
@@ -164,9 +162,11 @@ contract PermissionManager is PermissionManagerBase {
                 callType := mode
                 execType := shl(8, mode)
             }
-            if (ExecType.unwrap(execType) != ExecType.unwrap(EXECTYPE_DEFAULT)) revert();
+            if (ExecType.unwrap(execType) != ExecType.unwrap(EXECTYPE_DEFAULT)) {
+                revert();
+            }
             // DEFAULT EXEC & BATCH CALL
-            if (callType == CALLTYPE_BATCH) {
+            else if (callType == CALLTYPE_BATCH) {
                 vd = $actionPolicies.actionPolicies.checkBatch7579Exec({ userOp: userOp, signerId: signerId });
             } else if (callType == CALLTYPE_SINGLE) {
                 (address target, uint256 value, bytes calldata callData) = userOp.callData.decodeSingle();
@@ -181,11 +181,14 @@ contract PermissionManager is PermissionManagerBase {
                 revert();
             }
         }
-        // PermisisonManager does not support executeFromUserOp, should this function selector be used in the userOp,
-        // revert
+        // PermisisonManager does not support executeFromUserOp,
+        // should this function selector be used in the userOp: revert
         else if (selector == IAccountExecute.executeUserOp.selector) {
             revert ExecuteUserOpIsNotSupported();
         }
+        /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+        /*                        Handle Actions                      */
+        /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
         // all other executions are supported and are handled by the actionPolicies
         else {
             ActionId actionId = userOp.sender.toActionId(userOp.callData);
